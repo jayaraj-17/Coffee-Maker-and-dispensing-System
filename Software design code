@@ -1,0 +1,387 @@
+///////// mega ////////
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Data wire for sensor 1 is connected to Arduino pin 2
+#define ONE_WIRE_BUS_1 22
+
+// Data wire for sensor 2 is connected to Arduino pin 3
+#define ONE_WIRE_BUS_2 24
+
+// Setup a oneWire instance for each sensor
+OneWire oneWire1(ONE_WIRE_BUS_1);
+OneWire oneWire2(ONE_WIRE_BUS_2);
+
+// Pass oneWire reference to DallasTemperature library
+DallasTemperature sensors1(&oneWire1);  // Sensor 1
+DallasTemperature sensors2(&oneWire2);  // Sensor 2
+
+
+#include <Servo.h>
+Servo myservo;  // create servo object to control a servo
+// twelve servo objects can be created on most boards
+
+#include <SPI.h>
+#include <MFRC522.h>
+#define SS_PIN 9   // 10 for uno - 9 for mega
+#define RST_PIN 8  // 5 for uno - 8 for mega
+MFRC522 rfid(SS_PIN, RST_PIN);
+int i;
+
+int count1 = 200;
+int count2 = 300;
+int count3 = 400;
+
+const byte monUID1[4] = { 132, 219, 191, 114 };  // 4
+const byte monUID2[4] = { 244, 011, 03, 114 };   // 3
+const byte monUID3[4] = { 99, 44, 226, 26 };     // 2
+
+int card = 0;
+String uno = "";
+
+#include <LiquidCrystal.h>
+const int rs = 49, en = 47, d4 = 45, d5 = 43, d6 = 41, d7 = 39;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+unsigned int tempSensor1, tempSensor2;
+
+#define r1 31
+#define r2 33
+#define r3 35
+#define r4 37
+
+// Ultrasonic
+int out = 46;  //trigger
+int in = 48;   //echo
+float signalout;
+int od;
+// Ultrasonic 1
+int out1 = 42;  //trigger
+int in1 = 44;   //echo
+float signalout1;
+int od1;
+
+void setup() {
+  Serial.begin(9600);
+  Serial3.begin(9600);
+  lcd.begin(16, 2);
+
+  SPI.begin();      // init SPI bus
+  rfid.PCD_Init();  // init MFRC522
+
+  // Start up the libraries for both sensors
+  sensors1.begin();
+  sensors2.begin();
+
+  myservo.attach(10);  // attaches the servo on pin 9 to the servo object
+  myservo.write(0);
+
+  pinMode(r1, OUTPUT);
+  pinMode(r2, OUTPUT);
+  pinMode(r3, OUTPUT);
+  pinMode(r4, OUTPUT);
+
+  digitalWrite(r1, HIGH);
+  digitalWrite(r2, HIGH);
+  digitalWrite(r3, HIGH);
+  digitalWrite(r4, HIGH);
+
+  pinMode(out, OUTPUT);  //trigger
+  pinMode(in, INPUT);    // echo
+
+  pinMode(out1, OUTPUT);  //trigger
+  pinMode(in1, INPUT);    // echo
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("coffee wending");
+  lcd.setCursor(0, 1);
+  lcd.print(" machine ");
+  delay(1000);
+  lcd.clear();
+}
+
+void loop() {
+
+  digitalWrite(out, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(out, LOW);
+  delayMicroseconds(10);
+  signalout = pulseIn(in, HIGH);
+  od = 0.017 * signalout;
+  Serial.print("\ndistance: ");
+  Serial.print(od);
+  Serial.print(" cm\t");
+
+  digitalWrite(out1, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(out1, LOW);
+  delayMicroseconds(10);
+  signalout1 = pulseIn(in1, HIGH);
+  od1 = 0.017 * signalout1;
+  Serial.print("distance1: ");
+  Serial.print(od1);
+  Serial.print(" cm");
+
+  // Request temperature readings from both sensors
+  sensors1.requestTemperatures();
+  sensors2.requestTemperatures();
+
+  // Get the temperature from each sensor
+  tempSensor1 = sensors1.getTempCByIndex(0);  // Sensor 1
+  tempSensor2 = sensors2.getTempCByIndex(0);  // Sensor 2
+
+  Serial.print("\tt1: ");
+  Serial.print(tempSensor1);
+
+  Serial.print("\tt2: ");
+  Serial.print(tempSensor2);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("t1 :");
+  lcd.print(tempSensor1);
+  lcd.print(" t2 :");
+  lcd.print(tempSensor2);
+  lcd.setCursor(0, 1);
+  lcd.print("d1 :");
+  lcd.print(od);
+  lcd.print(" d2 :");
+  lcd.print(od1);
+  delay(100);
+
+  // container 1
+  if (tempSensor1 < 28) {
+    digitalWrite(r1, LOW);
+  } else {
+    digitalWrite(r1, HIGH);
+  }
+  // container 2
+  if (tempSensor2 < 20) {
+    digitalWrite(r2, LOW);
+  } else {
+    digitalWrite(r2, HIGH);
+  }
+
+  if ((od < 7) && (od1 < 7)) {
+    if (rfid.PICC_IsNewCardPresent()) {  // new tag is available
+      if (rfid.PICC_ReadCardSerial()) {  // NUID has been readed
+        // Serial.print("\nUID:");
+        for (int i = 0; i < rfid.uid.size; i++) {
+          // Serial.print(rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
+          // Serial.print(rfid.uid.uidByte[i]);
+          rfid.PICC_HaltA();  // halt PICC
+        }
+        {
+          if (rfid.uid.uidByte[i] == monUID1[i]) {
+            if (count1 > 50) {
+              count1 = count1 - 50;
+              lcd.clear();
+              lcd.setCursor(0, 0);
+              lcd.print("card 1 ");
+              lcd.print(count1);
+              delay(1000);
+              card = 1;
+              uno = String("a") + String(card) + String("b") + String(count1) + String("c");
+              Serial3.println(uno);
+              coffee();
+              lcd.clear();
+            } else {
+              lcd.clear();
+              lcd.setCursor(0, 0);
+              lcd.print("card 1 ");
+              lcd.print("low amount");
+              lcd.setCursor(0, 1);
+              lcd.print(count1);
+              delay(1000);
+            }
+          }
+          if (rfid.uid.uidByte[i] == monUID2[i]) {
+            if (count2 > 50) {
+              count2 = count2 - 50;
+              lcd.clear();
+              lcd.setCursor(0, 0);
+              lcd.print("card 2 ");
+              lcd.print(count2);
+              delay(1000);
+              card = 2;
+              uno = String("a") + String(card) + String("b") + String(count2) + String("c");
+              Serial3.println(uno);
+              coffee();
+              lcd.clear();
+            } else {
+              lcd.clear();
+              lcd.setCursor(0, 0);
+              lcd.print("card 2 ");
+              lcd.print("low amount");
+              lcd.setCursor(0, 1);
+              lcd.print(count2);
+              delay(1000);
+            }
+          }
+          if (rfid.uid.uidByte[i] == monUID3[i]) {
+            if (count3 > 50) {
+              count3 = count3 - 50;
+              lcd.clear();
+              lcd.setCursor(0, 0);
+              lcd.print("card 3 ");
+              lcd.print(count3);
+              delay(1000);
+              card = 3;
+              uno = String("a") + String(card) + String("b") + String(count3) + String("c");
+              Serial3.println(uno);
+              coffee();
+              lcd.clear();
+            } else {
+              lcd.clear();
+              lcd.setCursor(0, 0);
+              lcd.print("card 3 ");
+              lcd.print("low amount");
+              lcd.setCursor(0, 1);
+              lcd.print(count3);
+              delay(1000);
+            }
+          }
+        }
+      }
+    }
+  } else {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("check the");
+    lcd.setCursor(0, 1);
+    lcd.print("container level");
+    Serial.print("\tcheck the container level");
+  }
+}
+
+void coffee() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("sugar dispense");
+  delay(5000);
+
+  myservo.write(90);
+  delay(1000);
+  myservo.write(0);
+  delay(1000);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("coffee dispense");
+  delay(5000);
+  digitalWrite(r3, LOW);
+  delay(500);
+  digitalWrite(r3, HIGH);
+  delay(500);
+  digitalWrite(r4, LOW);
+  delay(1500);
+  digitalWrite(r4, HIGH);
+}
+
+
+//////////// node //////////
+
+#include <ESP8266WiFi.h>
+
+String apiKey = "K2LEIV9UBUC06S41";  // Enter your Write API key from ThingSpeak
+const char* ssid = "project";    // Replace with your Wi-Fi SSID
+const char* pass = "12345678";      // Replace with your Wi-Fi password
+const char* server = "api.thingspeak.com";
+
+WiFiClient client;
+
+void setup() {
+  Serial.begin(9600);
+  delay(10);
+
+  Serial.println("Connecting to Wi-Fi...");
+  WiFi.begin(ssid, pass);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.println("WiFi connected");
+}
+
+void loop() {
+  if (Serial.available() > 0) {
+    String data = Serial.readStringUntil('\n');
+
+    if (data.indexOf('a') != -1 && data.length() > 1) {
+      Serial.println(data);
+
+      int indexA = data.indexOf("a") + 1;
+      int indexB = data.indexOf("b") + 1;
+      int indexC = data.indexOf("c") + 1;
+      int indexD = data.indexOf("d") + 1;
+      int indexE = data.indexOf("e") + 1;
+      int indexF = data.indexOf("f") + 1;
+      int indexG = data.indexOf("g") + 1;
+      int indexH = data.indexOf("h") + 1;
+      int indexI = data.indexOf("i") + 1;
+
+      String valueA = data.substring(indexA, indexB - 1);
+      String valueB = data.substring(indexB, indexC - 1);
+      String valueC = data.substring(indexC, indexD - 1);
+      String valueD = data.substring(indexD, indexE - 1);
+      String valueE = data.substring(indexE, indexF - 1);
+      String valueF = data.substring(indexF, indexG - 1);
+      String valueG = data.substring(indexG, indexH - 1);
+      String valueH = data.substring(indexH, indexI - 1);
+      String valueI = data.substring(indexI);  // Assuming it goes to the end of the string
+
+      Serial.println("Value a: " + valueA);
+      Serial.println("Value b: " + valueB);
+      Serial.println("Value c: " + valueC);
+      Serial.println("Value d: " + valueD);
+      Serial.println("Value e: " + valueE);
+      Serial.println("Value f: " + valueF);
+      Serial.println("Value g: " + valueG);
+      Serial.println("Value h: " + valueH);
+      Serial.println("Value i: " + valueI);
+
+      if (client.connect(server, 80)) {
+        String postStr = "api_key=" + apiKey;
+        // String postStr = apiKey;
+        postStr += "&field1=" + valueA;
+        postStr += "&field2=" + valueB;
+        postStr += "&field3=" + valueC;
+        postStr += "&field4=" + valueD;
+        postStr += "&field5=" + valueE;
+        postStr += "&field6=" + valueF;
+        postStr += "&field7=" + valueG;
+        postStr += "&field8=" + valueI;
+
+        client.print("POST /update HTTP/1.1\n");
+        client.print("Host: api.thingspeak.com\n");
+        client.print("Connection: close\n");
+        // client.print("X-THINGSPEAKAPIKEY: " + apiKey + "\n");
+        client.print("Content-Type: application/x-www-form-urlencoded\n");
+        client.print("Content-Length: ");
+        client.print(postStr.length());
+        client.print("\n\n");
+        client.print(postStr);
+        // client.stop();
+        // Thingspeak requires a minimum 15-second delay between updates
+        delay(1000);  // Allow time for the server to process the request
+
+        //   if (client.connected()) {
+        //     Serial.println("Data sent to ThingSpeak successfully");
+        //     client.stop();
+        //   } else {
+        //     Serial.println("Failed to send data to ThingSpeak");
+        //   }
+      }
+      // else {
+      //   Serial.println("Failed to connect to ThingSpeak server");
+      // }
+
+      delay(15000);  // Minimum delay between updates for ThingSpeak
+    }
+  }
+}
